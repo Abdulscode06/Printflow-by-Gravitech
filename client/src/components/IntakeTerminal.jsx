@@ -61,7 +61,7 @@ export default function IntakeTerminal({ onSubmit, loading, error, successId }) 
             <button
               key={p.id}
               onClick={() => handlePreset(p.text)}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all duration-150 ${p.bg}`}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all duration-200 hover:scale-[1.025] hover:shadow-lg hover:shadow-black/30 active:scale-[0.99] cursor-pointer ${p.bg}`}
             >
               <Icon size={14} className={p.iconColor} />
               <div>
