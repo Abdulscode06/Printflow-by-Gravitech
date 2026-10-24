@@ -389,6 +389,18 @@ app.patch('/api/orders/:id/status', (req, res) => {
   res.json({ success: true, order });
 });
 
+// DELETE /api/orders/:id
+app.delete('/api/orders/:id', (req, res) => {
+  const { id } = req.params;
+  const index = orders.findIndex((o) => o.orderId === id);
+  if (index === -1) return res.status(404).json({ error: `Order ${id} not found.` });
+
+  const [deleted] = orders.splice(index, 1);
+  persistOrders();
+  console.log(`[PrintFlow] 🗑️  Deleted order ${id}`);
+  res.json({ success: true, deletedOrder: deleted });
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n[PrintFlow] 🚀  Server → http://localhost:${PORT}`);

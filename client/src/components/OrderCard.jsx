@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   User, Phone, Mail, AlertTriangle, ChevronDown, ChevronUp,
-  Copy, Check, Clock, Package, Zap,
+  Copy, Check, Clock, Package, Zap, Trash2,
 } from 'lucide-react';
 import { buildWhatsAppMessage } from '../utils/whatsapp.js';
 import StatusDropdown from './StatusDropdown.jsx';
@@ -27,9 +27,10 @@ function getCardTheme(orderId) {
   return CARD_PALETTES[num % CARD_PALETTES.length];
 }
 
-export default function OrderCard({ order, onStatusChange }) {
+export default function OrderCard({ order, onStatusChange, onDelete }) {
   const [jsonOpen, setJsonOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const hasMissing = order.missingDetails?.length > 0;
   const theme = getCardTheme(order.orderId);
@@ -78,9 +79,37 @@ export default function OrderCard({ order, onStatusChange }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Clock size={12} />
-          {formattedDate}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Clock size={12} />
+            {formattedDate}
+          </div>
+
+          {/* Delete Option with Inline Confirmation */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-1 bg-surface-2 px-1.5 py-0.5 rounded-lg border border-rose-500/30">
+              <button
+                onClick={() => onDelete?.(order.orderId)}
+                className="px-1.5 py-0.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-500/20 rounded transition-colors"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-1 py-0.5 text-[11px] text-slate-400 hover:text-white rounded transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              title="Delete this order"
+              className="p-1 rounded-md text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 

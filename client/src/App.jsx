@@ -83,6 +83,20 @@ export default function App() {
     }
   }, []);
 
+  // Delete an order
+  const handleDeleteOrder = useCallback(async (orderId) => {
+    try {
+      const res = await fetch(`${API}/orders/${orderId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setOrders((prev) => prev.filter((o) => o.orderId !== orderId));
+    } catch (e) {
+      console.error('Delete order failed:', e.message);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -100,7 +114,11 @@ export default function App() {
 
         {/* Right: Live Order Stream */}
         <div className="flex-1 overflow-y-auto">
-          <OrderStream orders={orders} onStatusChange={handleStatusChange} />
+          <OrderStream
+            orders={orders}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteOrder}
+          />
         </div>
       </main>
     </div>

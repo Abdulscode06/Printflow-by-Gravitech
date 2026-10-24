@@ -1,7 +1,7 @@
 import { LayoutList } from 'lucide-react';
 import OrderCard from './OrderCard.jsx';
 
-export default function OrderStream({ orders, onStatusChange }) {
+export default function OrderStream({ orders, onStatusChange, onDelete }) {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4 text-slate-600">
@@ -25,7 +25,12 @@ export default function OrderStream({ orders, onStatusChange }) {
       </div>
 
       {orders.map((order) => (
-        <OrderCard key={order.orderId} order={order} onStatusChange={onStatusChange} />
+        <OrderCard
+          key={order.orderId}
+          order={order}
+          onStatusChange={onStatusChange}
+          onDelete={onDelete}
+        />
       ))}
     </div>
   );
