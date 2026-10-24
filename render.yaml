@@ -1,0 +1,13 @@
+# Render Blueprint Specification for PrintFlow AI Backend
+
+services:
+  - type: web
+    name: printflow-backend
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false

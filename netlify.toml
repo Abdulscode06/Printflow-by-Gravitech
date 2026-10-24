@@ -1,0 +1,12 @@
+# Netlify Configuration for PrintFlow AI Frontend
+
+[build]
+  base = "client"
+  publish = "dist"
+  command = "npm run build"
+
+# SPA fallback rule for React Router / Single Page Apps
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

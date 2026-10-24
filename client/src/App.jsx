@@ -3,7 +3,7 @@ import Header from './components/Header.jsx';
 import IntakeTerminal from './components/IntakeTerminal.jsx';
 import OrderStream from './components/OrderStream.jsx';
 
-const API = '/api';
+const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 export default function App() {
   const [orders, setOrders] = useState([]);
