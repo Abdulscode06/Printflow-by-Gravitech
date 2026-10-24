@@ -32,7 +32,6 @@ export default function App() {
     setError(null);
     setSuccessId(null);
 
-    // 15-second client-side timeout mirror
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 35_000);
 
@@ -56,7 +55,7 @@ export default function App() {
       setTimeout(() => setSuccessId(null), 3000);
     } catch (e) {
       if (e.name === 'AbortError') {
-        setError('Request timed out (15s). Check your connection and try again.');
+        setError('Request timed out (35s). Check your connection and try again.');
       } else {
         setError(e.message);
       }
@@ -90,7 +89,7 @@ export default function App() {
 
       <main className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
         {/* Left: Intake Terminal */}
-        <div className="w-full lg:w-[420px] xl:w-[480px] lg:min-h-screen border-r border-slate-800 flex-shrink-0">
+        <div className="w-full lg:w-[420px] xl:w-[480px] lg:max-h-[calc(100vh-65px)] lg:overflow-y-auto border-r border-slate-800 flex-shrink-0">
           <IntakeTerminal
             onSubmit={handleSubmit}
             loading={loading}

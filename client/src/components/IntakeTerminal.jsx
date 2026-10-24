@@ -42,7 +42,7 @@ export default function IntakeTerminal({ onSubmit, loading, error, successId }) 
   const overLimit = charCount > 4000;
 
   return (
-    <div className="flex flex-col h-full p-6 gap-5">
+    <div className="flex flex-col p-6 gap-5">
       {/* Panel title */}
       <div className="flex items-center gap-2">
         <Terminal size={16} className="text-slate-400" />
@@ -73,8 +73,8 @@ export default function IntakeTerminal({ onSubmit, loading, error, successId }) 
         })}
       </div>
 
-      {/* Text area */}
-      <div className="flex flex-col flex-1 gap-2">
+      {/* Adjustable Text area */}
+      <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
             Raw Customer Message
@@ -87,11 +87,11 @@ export default function IntakeTerminal({ onSubmit, loading, error, successId }) 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Paste a WhatsApp message, email, or voice-to-text dump here…"
-          rows={10}
-          className="flex-1 w-full resize-none rounded-xl bg-surface-2 border border-slate-700 
+          rows={6}
+          className="w-full resize-y rounded-xl bg-surface-2 border border-slate-700 
                      focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40
                      text-sm text-slate-200 placeholder-slate-600 p-4 font-mono
-                     outline-none transition-all duration-200 min-h-[180px]"
+                     outline-none transition-all duration-200 min-h-[130px] max-h-[480px]"
         />
       </div>
 
@@ -113,30 +113,32 @@ export default function IntakeTerminal({ onSubmit, loading, error, successId }) 
         </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={!input.trim() || loading || overLimit}
-        className="btn-primary justify-center w-full py-3 text-base"
-      >
-        {loading ? (
-          <>
-            <Loader2 size={17} className="animate-spin" />
-            Processing with Gemma…
-          </>
-        ) : (
-          <>
-            <Zap size={17} />
-            Process Order with Gemma
-          </>
-        )}
-      </button>
+      {/* Sticky Gemma Submit Button */}
+      <div className="sticky bottom-0 bg-surface/95 backdrop-blur-md pt-3 pb-2 z-10 border-t border-slate-800/60 -mx-6 px-6 space-y-2">
+        <button
+          onClick={handleSubmit}
+          disabled={!input.trim() || loading || overLimit}
+          className="btn-primary justify-center w-full py-3 text-base shadow-lg shadow-indigo-600/20"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={17} className="animate-spin" />
+              Processing with Gemma…
+            </>
+          ) : (
+            <>
+              <Zap size={17} />
+              Process Order with Gemma
+            </>
+          )}
+        </button>
 
-      {loading && (
-        <p className="text-center text-xs text-slate-500 -mt-2 animate-pulse">
-          Calling Gemma 4 · up to 15s · please wait…
-        </p>
-      )}
+        {loading && (
+          <p className="text-center text-xs text-slate-500 animate-pulse">
+            Calling Gemma 4 · up to 30s · please wait…
+          </p>
+        )}
+      </div>
     </div>
   );
 }
