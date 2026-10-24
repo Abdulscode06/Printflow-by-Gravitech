@@ -16,7 +16,10 @@ export default function App() {
     try {
       const res = await fetch(`${API}/orders`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setOrders(await res.json());
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        setOrders(await res.json());
+      }
     } catch (e) {
       console.error('fetchOrders:', e);
     }
@@ -43,7 +46,15 @@ export default function App() {
         signal: controller.signal,
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        throw new Error(
+          'Backend returned HTML instead of JSON. Your backend URL is either not connected or still starting up on Render.',
+        );
+      }
 
       if (!res.ok) {
         setError(data.error ?? `Server error ${res.status}`);
