@@ -34,7 +34,7 @@ export default function App() {
 
     // 15-second client-side timeout mirror
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 16_000);
+    const timer = setTimeout(() => controller.abort(), 35_000);
 
     try {
       const res = await fetch(`${API}/parse-order`, {

@@ -37,7 +37,7 @@ const TOOL = {
   },
 };
 
-const MODELS = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const MODELS = ['gemini-3.8-flash', 'gemma-4-26b-a4b-it'];
 
 async function smokeTest() {
   console.log('\n📋  PrintFlow AI — Smoke Test\n');
@@ -48,8 +48,7 @@ async function smokeTest() {
     const list = await ai.models.list();
     const names = [];
     for await (const m of list) names.push(m.name);
-    console.log(`   Found ${names.length} models. Gemma candidates:`);
-    names.filter((n) => n.includes('gemma') || n.includes('gemini-2')).forEach((n) => console.log(`   • ${n}`));
+    console.log(`   Found ${names.length} models.`);
   } catch (e) {
     console.error('   ⚠️  Could not list models:', e.message);
   }
@@ -61,25 +60,26 @@ async function smokeTest() {
       console.log(`\n   → Trying ${model}...`);
       const response = await ai.models.generateContent({
         model,
-        contents: [{ role: 'user', parts: [{ text: 'I need 500 business cards. Name is Ahmed.' }] }],
-        tools: [{ functionDeclarations: [TOOL] }],
-        toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+        contents: 'I need 500 business cards. Name is Ahmed.',
+        config: {
+          tools: [{ functionDeclarations: [TOOL] }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: 'ANY',
+              allowedFunctionNames: ['extract_printing_order'],
+            },
+          },
+        },
       });
 
-      const parts = response.candidates?.[0]?.content?.parts ?? [];
-      const fnCall = parts.find((p) => p.functionCall);
-      const helperCall = response.functionCalls?.[0];
+      const fnCall = response.functionCalls?.[0] ?? response.candidates?.[0]?.content?.parts?.find((p) => p.functionCall)?.functionCall;
 
-      if (fnCall?.functionCall?.args) {
-        console.log(`   ✅  ${model} — function call OK via candidates.parts`);
-        console.log(`   Args:`, JSON.stringify(fnCall.functionCall.args, null, 4));
-        break;
-      } else if (helperCall?.args) {
-        console.log(`   ✅  ${model} — function call OK via response.functionCalls helper`);
-        console.log(`   Args:`, JSON.stringify(helperCall.args, null, 4));
+      if (fnCall?.args) {
+        console.log(`   ✅  ${model} — function call OK!`);
+        console.log(`   Args:`, JSON.stringify(fnCall.args, null, 4));
         break;
       } else {
-        console.log(`   ⚠️  ${model} — responded without function call. Text:`, response.text?.slice(0, 120));
+        console.log(`   ⚠️  ${model} — responded without function call.`);
       }
     } catch (e) {
       console.error(`   ❌  ${model} failed:`, e.message);
