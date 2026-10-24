@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   User, Phone, Mail, AlertTriangle, ChevronDown, ChevronUp,
-  Copy, Check, Clock, Package, Zap,
+  Copy, Check, Clock, Package, Zap, MessageCircle,
 } from 'lucide-react';
 import { buildWhatsAppMessage } from '../utils/whatsapp.js';
 import StatusDropdown from './StatusDropdown.jsx';
@@ -12,11 +12,27 @@ const STATUS_STYLES = {
   'Ready for Dispatch': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
 };
 
+const CARD_PALETTES = [
+  { border: 'border-indigo-500/30', accent: 'text-indigo-400', badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30', glow: 'from-indigo-950/15' },
+  { border: 'border-emerald-500/30', accent: 'text-emerald-400', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', glow: 'from-emerald-950/15' },
+  { border: 'border-cyan-500/30', accent: 'text-cyan-400', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', glow: 'from-cyan-950/15' },
+  { border: 'border-purple-500/30', accent: 'text-purple-400', badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30', glow: 'from-purple-950/15' },
+  { border: 'border-amber-500/30', accent: 'text-amber-400', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30', glow: 'from-amber-950/15' },
+  { border: 'border-rose-500/30', accent: 'text-rose-400', badge: 'bg-rose-500/15 text-rose-300 border-rose-500/30', glow: 'from-rose-950/15' },
+  { border: 'border-sky-500/30', accent: 'text-sky-400', badge: 'bg-sky-500/15 text-sky-300 border-sky-500/30', glow: 'from-sky-950/15' },
+];
+
+function getCardTheme(orderId) {
+  const num = parseInt(orderId?.replace(/\D/g, '') || '0', 10);
+  return CARD_PALETTES[num % CARD_PALETTES.length];
+}
+
 export default function OrderCard({ order, onStatusChange }) {
   const [jsonOpen, setJsonOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const hasMissing = order.missingDetails?.length > 0;
+  const theme = getCardTheme(order.orderId);
 
   const handleCopyWA = () => {
     const msg = buildWhatsAppMessage(order);
@@ -32,13 +48,26 @@ export default function OrderCard({ order, onStatusChange }) {
   });
 
   return (
-    <div className={`card p-5 space-y-4 ${order.isUrgent ? 'border-red-500/40 shadow-[0_0_0_1px_rgba(239,68,68,0.15)]' : ''}`}>
+    <div
+      className={`card p-5 space-y-4 bg-gradient-to-br ${theme.glow} via-surface-1 to-surface-1 transition-all duration-200 ${
+        order.isUrgent
+          ? 'border-red-500/50 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]'
+          : `${theme.border} hover:border-slate-700`
+      }`}
+    >
       {/* ── Header row ── */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="font-mono text-sm font-bold text-white tracking-tight">
+          <span className={`badge font-mono text-xs font-bold border ${theme.badge}`}>
             {order.orderId}
           </span>
+
+          {order.source === 'whatsapp' && (
+            <span className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <MessageCircle size={10} />
+              WhatsApp Auto-Intake
+            </span>
+          )}
 
           {order.isUrgent && (
             <span className="badge bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse-fast">
@@ -96,7 +125,7 @@ export default function OrderCard({ order, onStatusChange }) {
                 >
                   <Td>
                     <div className="flex items-center gap-1.5">
-                      <Package size={11} className="text-indigo-400 flex-shrink-0" />
+                      <Package size={11} className={`${theme.accent} flex-shrink-0`} />
                       <span className="font-medium text-slate-200 capitalize">{item.productType}</span>
                     </div>
                   </Td>

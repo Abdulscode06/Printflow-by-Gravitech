@@ -301,66 +301,206 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health
-app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', orders: orders.length, models: MODELS }),
-);
+// ─── Real-time Server-Sent Events (SSE) ───────────────────────────────────────
+const sseClients = new Set();
 
-// POST /api/parse-order
-app.post('/api/parse-order', async (req, res) => {
-  const { rawInput } = req.body ?? {};
+function broadcastEvent(eventData) {
+  const payload = `data: ${JSON.stringify(eventData)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
 
+app.get('/api/orders/live', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  sseClients.add(res);
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
+});
+
+// ─── Order Processing Core ───────────────────────────────────────────────────
+async function processRawOrder({ rawInput, source = 'manual', defaultCustomerName, defaultPhone }) {
   if (typeof rawInput !== 'string' || rawInput.trim().length === 0) {
-    return res.status(400).json({ error: 'rawInput must be a non-empty string.' });
+    throw new Error('rawInput must be a non-empty string.');
   }
   if (rawInput.length > MAX_INPUT_LENGTH) {
-    return res.status(400).json({
-      error: `Input too long (${rawInput.length} chars). Max is ${MAX_INPUT_LENGTH}.`,
-    });
+    throw new Error(`Input too long (${rawInput.length} chars). Max is ${MAX_INPUT_LENGTH}.`);
   }
 
   // Pre-process: normalise number words
   const processedInput = normaliseNumberWords(rawInput.trim());
 
+  const { args, model } = await callGemma(processedInput);
+
+  // Zod validation
+  const parseResult = OrderArgsSchema.safeParse(args);
+  if (!parseResult.success) {
+    console.error('[PrintFlow] ⚠️  Zod validation failed:', parseResult.error.flatten());
+    throw new Error('Model returned an unexpected structure.');
+  }
+
+  const validated = parseResult.data;
+
+  // Fallbacks from WhatsApp metadata if model missed name or phone
+  if ((!validated.customerName || validated.customerName === 'Unknown') && defaultCustomerName) {
+    validated.customerName = defaultCustomerName;
+  }
+  if (!validated.phone && defaultPhone) {
+    validated.phone = defaultPhone;
+  }
+
+  // Server-side enrichment
+  validated.isUrgent = checkUrgency(rawInput, validated.isUrgent);
+  validated.missingDetails = computeContactGaps(validated);
+
+  const order = {
+    orderId: nextOrderId(),
+    timestamp: new Date().toISOString(),
+    status: 'Pending Intake',
+    source, // 'whatsapp', 'manual', or 'simulator'
+    model,
+    rawInput: rawInput.trim(),
+    ...validated,
+  };
+
+  orders.unshift(order);
+  persistOrders();
+  broadcastEvent({ type: 'new_order', order, source });
+
+  return order;
+}
+
+// ─── WhatsApp Cloud API Integration ──────────────────────────────────────────
+async function sendWhatsAppReply(to, order) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId) return;
+
   try {
-    const { args, model } = await callGemma(processedInput);
+    const missingText = order.missingDetails?.length > 0
+      ? `\n\n⚠️ *Action Required:*\nBefore we begin printing, please reply with:\n${order.missingDetails.map((d) => `• ${d}`).join('\n')}`
+      : '\n\n✅ *All details verified!* Order queued for production.';
 
-    // Zod validation — catches model hallucinations / missing required fields
-    const parseResult = OrderArgsSchema.safeParse(args);
-    if (!parseResult.success) {
-      console.error('[PrintFlow] ⚠️  Zod validation failed:', parseResult.error.flatten());
-      return res.status(422).json({
-        error: 'Model returned an unexpected structure.',
-        issues: parseResult.error.flatten().fieldErrors,
-        rawArgs: args,
+    const itemsSummary = order.items.map((i) => `• ${i.quantity}x ${i.productType}`).join('\n');
+    const replyBody = `Salam ${order.customerName}!\n\nWe received your printing order (*${order.orderId}*):\n${itemsSummary}${missingText}\n\n— PrintFlow AI`;
+
+    await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body: replyBody },
+      }),
+    });
+    console.log(`[PrintFlow] 📤 WhatsApp confirmation sent to ${to}`);
+  } catch (err) {
+    console.warn('[PrintFlow] ⚠️  WhatsApp reply failed:', err.message);
+  }
+}
+
+// Health
+app.get('/api/health', (_req, res) =>
+  res.json({
+    status: 'ok',
+    orders: orders.length,
+    models: MODELS,
+    whatsappWebhookReady: true,
+  }),
+);
+
+// Meta Webhook Verification
+app.get('/api/webhook/whatsapp', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'printflow_webhook_secret_token';
+
+  if (mode === 'subscribe' && token === verifyToken) {
+    console.log('[PrintFlow] 📱 WhatsApp Webhook verified successfully with Meta!');
+    return res.status(200).send(challenge);
+  }
+  res.sendStatus(403);
+});
+
+// Meta Webhook Inbound Message
+app.post('/api/webhook/whatsapp', async (req, res) => {
+  res.sendStatus(200); // Fast 200 ACK for Meta
+
+  try {
+    const entry = req.body?.entry?.[0];
+    const change = entry?.changes?.[0]?.value;
+    const message = change?.messages?.[0];
+    const contact = change?.contacts?.[0];
+
+    if (message?.type === 'text' && message?.text?.body) {
+      const textBody = message.text.body;
+      const senderPhone = contact?.wa_id || message.from;
+      const senderName = contact?.profile?.name || 'WhatsApp Customer';
+
+      console.log(`\n[PrintFlow] 📱 Inbound WhatsApp from ${senderName} (${senderPhone}): "${textBody}"`);
+
+      const order = await processRawOrder({
+        rawInput: textBody,
+        source: 'whatsapp',
+        defaultCustomerName: senderName,
+        defaultPhone: senderPhone,
       });
+
+      console.log(`[PrintFlow] ⚡ Auto-processed ${order.orderId} from WhatsApp.`);
+      await sendWhatsAppReply(senderPhone, order);
     }
+  } catch (err) {
+    console.error('[PrintFlow] ❌ Error in WhatsApp webhook:', err.message);
+  }
+});
 
-    const validated = parseResult.data;
+// Webhook Simulator Endpoint for Testing Without Meta Setup
+app.post('/api/webhook/simulate', async (req, res) => {
+  const { from = '0300-9876543', name = 'Hamza (WhatsApp)', text } = req.body ?? {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text must be a non-empty string' });
+  }
 
-    // Server-side enrichment
-    validated.isUrgent = checkUrgency(rawInput, validated.isUrgent);
-    validated.missingDetails = computeContactGaps(validated);
+  try {
+    console.log(`\n[PrintFlow] 📲 Simulating Inbound WhatsApp from ${name}: "${text}"`);
+    const order = await processRawOrder({
+      rawInput: text,
+      source: 'whatsapp',
+      defaultCustomerName: name,
+      defaultPhone: from,
+    });
+    res.status(201).json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    const order = {
-      orderId: nextOrderId(),
-      timestamp: new Date().toISOString(),
-      status: 'Pending Intake',
-      model,
-      rawInput: rawInput.trim(),
-      ...validated,
-    };
-
-    orders.unshift(order);
-    persistOrders();
-
+// POST /api/parse-order (Manual Intake)
+app.post('/api/parse-order', async (req, res) => {
+  const { rawInput } = req.body ?? {};
+  try {
+    const order = await processRawOrder({ rawInput, source: 'manual' });
     return res.status(201).json({ success: true, order });
   } catch (err) {
     const isTimeout = err.message.includes('timed out');
     console.error('[PrintFlow] ❌  Parse error:', err.message);
     return res.status(isTimeout ? 504 : 500).json({
       error: isTimeout
-        ? 'The AI model timed out (15 s). Please try again.'
+        ? 'The AI model timed out (30 s). Please try again.'
         : 'Failed to process order. Please try again.',
       detail: err.message,
     });
